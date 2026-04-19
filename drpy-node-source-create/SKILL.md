@@ -264,6 +264,31 @@ detailUrl
 
 ---
 
+### 5. 当页面真实有多集但 `vod_play_url` 只吐出 1 集时，先检查 `lists` 容器层级
+不要看到详情页真实能抓到多个 `<a>`，就立刻否定二级字典方式或切到 async。应优先检查：
+- `lists` 是否落在了适合引擎逐项消费的容器层级
+- `#id` 是否仅用于线路容器替换，而不是被误理解为控制单线路集数
+
+#### 已验证案例：咕咕番
+对于这类“一级异步接口 + 详情页直出资源列表”的动漫站，页面上：
+- `.anthology-list-box:eq(0) .anthology-list-play` 可抓到 1 个 `ul`
+- `.anthology-list-box:eq(0) .anthology-list-play a` 可抓到 2 个 `a`
+- `.anthology-list-box:eq(0) .anthology-list-play li` 可抓到 2 个 `li`
+
+但在 drpy 引擎的二级字典模式下，要稳定吐出多集，最终应优先尝试：
+```js
+lists: '.anthology-list-box:eq(#id) .anthology-list-play li',
+list_text: 'a&&Text',
+list_url: 'a&&href'
+```
+
+#### 判定原则
+- `#id` 的主要作用是“线路容器替换定位”
+- 真正影响该站多集展开成功与否的关键，往往是 `lists` 落在 `li` 项层，而不是 `ul` 容器层
+- 因此：**先调 `lists` 容器层级，再考虑放弃字典或切 async**
+
+---
+
 ### 1. 二级字典字段不是随意拼接，`;` 有固定槽位语义
 默认应按 drpy-node 引擎契约理解：
 

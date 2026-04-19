@@ -1,17 +1,12 @@
 [
   {
     "id": 1,
-    "prompt": "评估一下源 橘子动漫，看看是不是可用；如果自动评估只挂搜索，顺手判断是规则坏了还是评估词问题。",
-    "expected": "应先走评估闭环，再识别“仅搜索失败”是否属于评估词不适配，并给出是否真实可用的结论。"
+    "prompt": "一个 drpy 源 evaluate_spider_source 低分，但 category/detail/play 单测大多正常。请给出 workflow 应该怎么分流和排查。",
+    "expected": "应先区分规则不通与自动串联没接上，优先检查首页 class、class_parse、double、url/searchUrl，再决定是否分流到其他子 skill。"
   },
   {
     "id": 2,
-    "prompt": "这个源首页正常、一级正常、二级正常、播放正常，但搜索为空。帮我判断下一步该修规则还是先拆接口验证。",
-    "expected": "应区分规则本身不通与自动评估/搜索词不适配，优先建议用 test_spider_interface(search) 或更合适关键词复测，而不是直接重写搜索规则。"
-  },
-  {
-    "id": 3,
-    "prompt": "帮我系统排查一个 drpy 源：详情为空、播放不通、还要决定最后该不该上传仓库。",
-    "expected": "应体现总控分流：先评估，再判断是否分给 play-debug 或 repo-upload，最后收束为上传/不上传结论。"
+    "prompt": "某站 detail 页真实能抓到多集，debug_spider_rule 对 ul/li/a 都能看到多项，但最终 vod_play_url 只出 1 集。workflow 应先怎么处理？",
+    "expected": "应优先检查二级字典的 lists/list_text/list_url 契约，先验证 lists 容器层级是否应落到 li，而不是直接切 async 二级或甩锅引擎。"
   }
 ]

@@ -235,6 +235,34 @@ img&&data-original||img&&src
 如果用户没要求，不要默认一开始就强行把年份、地区、演员、导演全部补满。
 
 
+### 5. 页面真实多集但 detail 只吐 1 集时，先查 `lists` 容器层级
+如果：
+- 详情页真实 DOM 已确认能抓到多集
+- `vod_play_from` 正常
+- 但 `vod_play_url` 在字典模式下只吐出 1 集
+
+不要第一反应就把二级切成 async。总控层应优先判断：
+1. `lists` 是否落在了适合引擎逐项消费的容器层级
+2. `#id` 是否只是线路容器替换定位，而不是被误解成控制单线路集数
+
+#### 已验证案例：咕咕番
+对于这类“一级异步接口 + 详情直出资源列表”的站点：
+- `lists: '.anthology-list-box:eq(#id) .anthology-list-play'` 可能仍只吐出 1 集
+- 改为：
+```js
+lists: '.anthology-list-box:eq(#id) .anthology-list-play li',
+list_text: 'a&&Text',
+list_url: 'a&&href'
+```
+后，可恢复多集输出
+
+#### 工作流动作
+- 先用 `debug_spider_rule(pdfa)` 分别验证 `ul / li / a` 三层能抓到多少项
+- 若页面上多集存在，优先尝试把 `lists` 从容器层下沉到 `li` 项层
+- 只有在字典容器层级已验证不成立时，才考虑切到 async 二级
+
+---
+
 ### A. 先查 `class_parse`
 如果首页 `class` 为空，而规则里明明写了 `class_name/class_url`，应优先检查模板是否残留 `class_parse` 覆盖了分类输出。
 
