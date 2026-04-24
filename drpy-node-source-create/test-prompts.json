@@ -1,12 +1,17 @@
 [
   {
-    "id": 1,
-    "prompt": "新建一个动漫站源，分类页首屏没有直出列表，页面上只有一个空容器和很多筛选项。请先判断是不是异步接口站，再给出最小建源路线。",
-    "expected": "应优先判断一级是否为异步接口，避免直接手写字符串一级；应提出一级 async、二级尽量保字典、搜索独立验证的路线。"
+    "id": "template-cms-minimal",
+    "prompt": "帮我根据一个疑似 mxpro 的影视站 URL 新建 drpy DS 源，源名你来取，先不要上传。",
+    "expected": "先 guess_spider_template 判断模板，确认建源方案，最小覆盖 host/url/searchUrl/class_parse，写入后按 home/category/detail/search/play 验证并输出建源结果。"
   },
   {
-    "id": 2,
-    "prompt": "一个新站 detail 已经通了，页面真实有两集，但 vod_play_url 在二级字典模式下只吐出 1 集。请判断应该优先检查什么。",
-    "expected": "应优先检查 detailUrl 和 lists 容器层级，尤其说明 #id 主要用于线路替换，lists 可能需要从 ul 下沉到 li 层，而不是第一时间切 async。"
+    "id": "spa-signed-api",
+    "prompt": "这个 React/Vue 影视站源码 body 基本为空，分类和搜索像是签名 API，请从零写源。",
+    "expected": "走路线 C 或 B/C 混合；先还原浏览器请求，fetch_spider_url 复现 method/headers/body/sign，再写 async，确保 this.input/detailUrl/searchUrl/body 使用正确。"
+  },
+  {
+    "id": "special-content-comic",
+    "prompt": "这个站是漫画源，章节页里是一组图片，帮我做成 drpy 源。",
+    "expected": "识别特殊内容类型，在 lazy 返回 pics:// 图片列表，验证 detail 章节与 play 特殊协议，不误用普通影视 lazy。"
   }
 ]

@@ -5,6 +5,21 @@ description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 
 
 # drpy-node Source Create
 
+## 快速索引
+
+| 用户意图/站点特征 | 直接入口 | 成功判据 |
+|---|---|---|
+| 标准 CMS / 模板命中 | 路线 A：继承模板站 | 最小覆盖后 home/category/detail/search/play 可串联 |
+| HTML 有内容但接口带签名 | 路线 B2：非模板签名接口站 | 一级/搜索使用真实签名请求，二级优先字典 |
+| SPA / body 近空 / JSON API | 路线 C：纯 API 驱动 SPA 站 | 全 async，`this.input/detailUrl/searchUrl` 正确 |
+| 漫画/小说/音乐/网盘 | 特殊内容类型 / 网盘补充清单 | lazy 返回对应特殊协议或按 flag 分派 |
+
+## 执行契约
+
+- 输入：用户给的 URL/站名/目标内容类型；若缺源名，先自行推导候选源名。
+- 输出：`spider/js/[源名].js` 最小可用源 + 接口验证结果 + 后续分流建议。
+- 停手：已有源修复、播放专项、仓库上传分别交给 workflow/play-debug/repo-upload。
+
 ## 调度优先级
 
 当本地环境已安装本 Skill 时：
@@ -32,18 +47,33 @@ description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 
   - 找到 JSON API → 走路线 C（纯 API 站）
   - 无 JSON API + 数据由带签名接口驱动 → 走路线 B
   - 请求返回 403/404 → 区分"无此接口"与"需要签名"，换浏览器抓包确认
-- 不命中 + 有完整 HTML 列表 DOM → 走路线 B（手动分析接口）
+- 不命中 + 有完整 HTML 列表 DOM → 走路线 B1（静态 DOM/字符串规则站）
 
 **辅助判断：`analyze_website_structure(url)` 抓取精简 DOM 结构（注意看列表区域是空容器还是直出 HTML）**
 **辅助判断：`fetch_spider_url(url)` 查看原始响应和 headers**
 
-### Step 3：保住最小可用链路
+### Step 3：确认建源方案（写入前）
+
+在正式写入 `spider/js/[源名].js` 前，先向用户呈现：
+
+```markdown
+## 建源方案
+- 源名：...
+- 站型判断：路线 A / B / C / 特殊内容
+- 证据：guess_spider_template / DOM / API / 浏览器抓包摘要
+- 拟使用模式：模板继承 / 字符串规则 / async / 网盘型
+- 最小验证链：home → category → detail → search → play
+```
+
+必须得到用户确认后再写入；如果涉及登录态、复杂反爬、批量抓取或上传，也必须先确认。
+
+### Step 4：保住最小可用链路
 
 **工具调用顺序：**
 ```
 1. get_spider_template()       → 获取标准模板
-2. drpy_write_file()                → 保存到 spider/js/[源名].js
-3. drpy_check_syntax(path)          → 语法检查
+2. drpy_write_file()           → 保存到 spider/js/[源名].js
+3. drpy_check_syntax(path)     → 语法检查
 4. validate_spider(path)       → 结构检查
 5. test_spider_interface(home) → 测试首页
 6. test_spider_interface(category, class_id) → 测试一级
@@ -58,12 +88,48 @@ description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 
 - `fetch_spider_url(url)` → 测试 API 连通性和响应
 - `extract_website_filter(url)` → 提取分类筛选条件
 
-### Step 4：决定是否切换
-- 已变成系统性修源/评估/上传 → 交给 `drpy-node-source-workflow`
-- 主要卡在播放链 → 交给 `drpy-node-play-debug`
+**筛选 filter 处理要点：**
+1. 分类页有地区/年份/排序等筛选时，先调用 `extract_website_filter(url)`；筛选很长时用 `gzip: true` 压缩输出。
+2. 生成结果应落到 rule 的 `filter` / `filter_def` / `filter_url`，不要把筛选硬编码进一级 async。
+3. 验证筛选时用 `test_spider_interface(category, class_id, ext)`，`ext` 传工具生成的 base64 筛选参数。
+4. 如果筛选导致列表为空，先测无筛选 category，再逐个筛选项定位错误。
 
-### 强约束
-**不要一上来就大面积手写 一级/搜索/二级。先分站型，先判断模板/签名接口，先保住最小可用。**
+### 工具参数示例（MCP 真实字段）
+
+```text
+test_spider_interface(source_name='源名', interface='category', class_id='1', ext='')
+test_spider_interface(source_name='源名', interface='detail', ids='一级返回的真实 vod_id')
+test_spider_interface(source_name='源名', interface='search', keyword='高频宽匹配词')
+test_spider_interface(source_name='源名', interface='play', play_url='二级返回的真实播放地址', flag='线路名')
+```
+
+
+
+### 失败兜底与停手边界
+
+| 失败点 | 不要做 | 正确动作 |
+|---|---|---|
+| `guess_spider_template` 不确定 | 硬套最像的模板 | 用 `analyze_website_structure` + `fetch_spider_url` 判 A/B/C，必要时按 B/C 最小 async |
+| 静态请求 403/空 body | 直接判站点不可做 | 用浏览器网络请求复现 headers/method/body；若仍需登录/验证码则停手说明 |
+| 签名算法找不到 | 搬整段前端 bundle | 只定位生成 sign/token 的最小函数；找不到就输出阻塞点，不写死抓包值 |
+| `fetch_spider_url` 能通但源内不通 | 反复改 selector | 对照 method、headers、body、`this.input`、`searchUrl **` 是否一致 |
+| 验证中途失败 | 继续补其它接口 | 停在第一个断点，用真实上游返回值复测后再继续 |
+| 涉及登录态/验证码/强风控 | 绕过或批量尝试 | 向用户确认授权范围和可用凭据，未确认不继续 |
+
+---
+
+## 路线 D：特殊内容类型
+
+漫画、小说、音乐、网盘不是普通影视 lazy 的变体，先确认内容形态再建源。
+
+| 类型 | detail 目标 | play/lazy 返回 | 验证重点 |
+|---|---|---|---|
+| 漫画 | 章节名 + 章节 URL | `pics://` + 图片 URL 列表 | 图片顺序、分页/懒加载、反盗链 headers |
+| 小说 | 章节名 + 正文页 URL | `novel://` 或正文内容协议 | 编码、分页、正文清洗 |
+| 音乐 | 歌曲名 + 音频页/接口 | mp3/m4a 直链或解析 | content-type、时效签名 |
+| 网盘 | 资源标题 + 分享链接 | `push://` 或网盘专用字段 | 提取码、失效提示、多网盘线路 |
+
+特殊内容验证顺序仍是 home → category → detail → play；只是 play 的成功标准换成对应特殊协议，不要强行套 m3u8/mp4 判断。
 
 ---
 
@@ -85,13 +151,21 @@ description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 
 | mxone5 | One5主题 | `/show/fyclass--------fypage---.html` | true | common_lazy |
 | 首图 | 首图CMS | `/vodshow/fyclass--------fypage---/` | true | common_lazy |
 | 首图2 | 首图CMS v2 | `/list/fyclass-fypage.html` | true | common_lazy |
+| vfed | VFed CMS | `/index.php/vod/show/id/fyclass/page/fypage.html` | true | common_lazy |
 | 海螺3 | 海螺CMS v3 | `/vod_____show/fyclass--------fypage---.html` | true | common_lazy |
 | 海螺2 | 海螺CMS v2 | `/index.php/vod/show/id/fyclass/page/fypage/` | true | common_lazy |
 | 短视 | 短视频 | `/channel/fyclass-fypage.html` | true | common_lazy |
 | 短视2 | 短视频v2 | API驱动(`#type=fyclass&page=fypage`) | true | common_lazy |
 | 采集1 | 采集站 | API: `?ac=detail&pg=fypage&t=fyclass` | false | cj_lazy(依赖parse_url) |
+| 默认 | 通用兜底 | 空/自定义 | false | def_lazy(嗅探兜底) |
 
 **double: true** 意味着推荐需要两层解析（先取外层容器，再从内层提取数据）。如果首页推荐空，优先检查是否误用了 `double: true`。
+
+### 什么时候不要盲信模板命中
+- `guess_spider_template` 只说明 class_parse 特征相似，不保证 `url/searchUrl/二级/lazy` 都匹配。
+- 命中模板但 `get_resolved_rule(path)` 显示 url/searchUrl 与真实站点不同 → 只覆盖 URL 模板，不重写整套规则。
+- 命中模板但分类页实际是 API/签名接口 → 保留模板可用字段，一级/搜索局部切 async。
+- 命中默认模板 → 视为兜底骨架，不等同于 CMS 模板站。
 
 详细模板字段见 `references/references-template-system.md`。
 
@@ -119,9 +193,27 @@ description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 
 
 ---
 
-## 路线 B：非模板签名接口站
+## 路线 B：非模板 HTML / 签名接口站
 
-当站点不是内置模板，有完整 HTML DOM 结构，但分类/搜索等数据由前端带签名的接口驱动时走此路线。此路线介于路线 A（纯模板继承）和路线 C（全 async API）之间——页面结构可通过 HTML 解析，但数据加载依赖接口调用。
+先把非模板站拆成两类，避免把普通静态 DOM 站过度分析成签名接口站：
+
+| 子路线 | 判定 | 首选实现 | 升级条件 |
+|---|---|---|---|
+| B1 静态 DOM 站 | 分类/详情/搜索 HTML 直出 | 字符串规则 + 二级字典 | 选择器无法稳定覆盖时局部 async |
+| B2 签名接口站 | 列表/搜索由 XHR/API 返回，带 time/sign/token/header | async 函数复现浏览器请求 | 签名算法复杂或需登录时停手确认 |
+
+### 路线 B1：静态 DOM/字符串规则站
+
+当 HTML 直接包含列表、详情和搜索结果时，不要先抓签名 API：
+1. 用 `analyze_website_structure(url)` 确认列表节点、标题、图片、链接字段。
+2. 用 `debug_spider_rule` 先验证一级字符串规则。
+3. 详情优先用二级字典 `{title, img, desc, content, tabs, lists}`。
+4. 搜索页如果 DOM 独立，单独写 `搜索`，不要默认 `搜索: '*'`。
+5. 只有翻页/搜索/章节依赖 XHR 时，才把对应接口局部升级为 async。
+
+### 路线 B2：非模板签名接口站
+
+当站点不是内置模板，有完整 HTML 外壳，但分类/搜索等数据由前端带签名的接口驱动时走 B2。B2 介于路线 A（纯模板继承）和路线 C（全 async API）之间——页面结构可通过 HTML 解析，但数据加载依赖接口调用。
 
 ### 先判断一级是否由签名接口驱动
 不要看到 `data-api` 就直接假设这是可裸 GET 的 JSON 接口。必须确认：
@@ -199,6 +291,16 @@ description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 
 - 不要生成 `img&&data-original||img&&src` 这种跨 selector fallback（超出 parser 稳定边界）
 - 优先保守、可验证的规则写法
 
+### 签名/API 请求重建清单
+
+遇到路线 B/C 的动态接口时，用这个顺序把浏览器请求还原到源代码：
+1. 浏览器网络面板或 Playwright 确认 method、URL、query、body、headers。
+2. 区分固定 header、Cookie、Authorization、time/sign/key 等动态字段。
+3. 先用 `fetch_spider_url(url, options)` 复现原请求；POST 统一写 `body: JSON.stringify(...)`。
+4. 签名参数如果来自页面 JS，优先定位最小算法；不要把整段前端代码搬进源。
+5. 复现成功后再写 async；一级用 `this.MY_CATE/MY_PAGE`，搜索用 `this.KEY`。
+6. 签名有时效时，在 async 内即时计算，不要写死抓包值。
+
 ---
 
 ## 二级字典规范
@@ -248,49 +350,78 @@ description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 
 | 模式 | 代码量 | 适用场景 | 关键字段 |
 |------|--------|---------|---------|
 | **模板继承** | 7-15行 | `guess_spider_template` 命中内置模板 | `模板: 'mxpro'`, `class_parse`, `url` |
-| **字符串规则** | 15-30行 | DOM 结构稳定的标准站 | `一级: 'ul li;a&&title;...'` |
+| **字符串规则** | 15-30行 | DOM 结构稳定的 B1 静态站 | `一级: 'ul li;a&&title;...'` |
 | **js: 内联** | 1-2行表达式 | 字符串规则中嵌入少量计算 | `一级: 'js:let x=input...'` |
-| **async 函数** | 50-200行 | 签名 API、反爬、非标站 | `一级: async function() { ... }` |
+| **async 函数** | 50-200行 | B2 签名 API、路线 C、反爬、非标站 | `一级: async function() { ... }` |
 | **网盘型** | 100-300行 | 多网盘资源聚合 | `hostJs`, `line_order`, `lazy` 按 flag 分派 |
 
 **核心原则**: 能用模板继承就不用字符串规则，能用字符串就不用 async 函数，逐步增加复杂度。
 
+### 高级字段触发点
+
+这些字段只在确有需求时使用，优先作为局部增强，不要替代简单规则：
+
+| 字段 | 何时使用 | 注意 |
+|---|---|---|
+| `hostJs` | 站点域名漂移、需从配置页/发布页动态取 host | 返回最终 host；与 `line_order/lazy` 的共享状态要保持最小 |
+| `预处理` | 进入接口前需要初始化 cookie/token/全局变量 | 只做初始化，不在里面抓完整列表 |
+| `模板修改` | 模板整体适配但少数字段需在继承前调整 | 比复制整份模板更安全；只改目标模板的必要字段 |
+| `二级访问前` | 详情页需要追加参数或转换 URL | 返回新 URL，避免在二级主体里重复拼接 |
+| `proxy_rule` | 图片/播放/接口需要本地代理转换 | 仅用于必须代理的资源，避免扩大范围 |
+
+### 网盘/多线路源补充清单
+- `hostJs` 只负责确定可用 host 或公共配置，不要混入分类抓取。
+- `line_order` 用于稳定线路排序，避免客户端每次看到不同顺序。
+- `lazy` 必须按 `flag` 分派不同网盘/解析逻辑，不要用一个分支处理所有线路。
+- 网盘转存、解析、直链提取应分层验证；单条线路失败不要影响其他线路。
+
 ---
 
-## 特殊内容类型
+## 特殊内容 lazy 模板
+
+路线 D 确认内容类型与验证标准；本节只给 lazy 返回示例。
 
 当源类型非影视时，需要在 lazy 中返回特殊协议：
 
 ### 漫画类型
-```js
-lazy: async function () {
-    let html = await request(input);
-    let arr = pdfa(html, '.comic-pages&&img');
-    let urls = arr.map(it => pdfh(it, 'img&&data-src'));
-    return { parse: 0, url: 'pics://' + urls.join('&&'), js: '' };
-}
+```text
+lazy 返回 pics:// 的伪代码：
+- request(input) 获取章节页
+- pdfa(html, '.comic-pages&&img') 提取图片节点
+- pdfh(it, 'img&&data-src') 提取图片地址
+- return { parse: 0, url: 'pics://' + urls.join('&&'), js: '' }
 ```
 
 ### 小说类型
-```js
-lazy: async function () {
-    let html = await request(content_url);
-    let json = JSON.parse(html);
-    let ret = JSON.stringify({ title, content: json.data.content });
-    return { parse: 0, url: 'novel://' + ret, js: '' };
-}
+```text
+lazy 返回 novel:// 的伪代码：
+- request(content_url) 获取章节正文
+- JSON.parse 或 DOM 规则提取 title/content
+- return { parse: 0, url: 'novel://' + JSON.stringify({ title, content }), js: '' }
 ```
 
 ### 音频/音乐类型
-```js
-lazy: async function () {
-    let html = await request(input);
-    // 提取直链 m4a/mp3
-    let music = html.match(/var\s+music\s*=\s*(\{[\s\S]*?\})/)[1];
-    music = JSON5.parse(music);
-    input = urljoin(input, music.file + ".m4a");
-    return input; // 返回字符串，框架自动判断为 parse:0
-}
+```text
+lazy 返回音频直链的伪代码：
+- request(input) 获取播放页或音频接口
+- 提取 m4a/mp3 地址并用 urljoin 补全
+- return 音频 URL 字符串，框架自动判断 parse:0
 ```
 
-详情见 `references/references-special-content.md`。
+## 收尾输出模板
+
+```markdown
+## 建源结果
+- 文件：spider/js/[源名].js
+- 站型：路线 A / B / C / 特殊内容
+- 实现方式：模板继承 / 字符串规则 / async / 混合 / 网盘型
+- 验证：
+  - home：通过 / 未通过（依据）
+  - category：通过 / 未通过（class_id=...）
+  - detail：通过 / 未通过（ids=...）
+  - search：通过 / 未通过（keyword=...）
+  - play：通过 / 未通过（flag/url=...）
+- 未覆盖风险：登录态 / 签名时效 / 搜索翻页 / 多线路 / 反爬
+- 下一步：继续修源 / 播放专项 / 上传仓库 / 结束
+```
+

@@ -1,17 +1,17 @@
 [
   {
-    "id": 1,
-    "prompt": "这个源帮我上传仓库，标签只要 ds，不要乱加。",
-    "expected": "应先校验上传前条件，再按用户要求只使用 ds 标签，默认优先替换同名文件，并回报 file_id/cid/tags。"
+    "id": "upload-ds-only",
+    "prompt": "把 spider/js/某源.js 上传仓库，只打 ds 标签，上传前先检查能不能传。",
+    "expected": "house_verify + L1 校验；若要建议上传则补 L2/L3；确认 tags=ds 和 auto_replace 后上传，返回 file_id/cid/tags/is_public 并 info 核验。"
   },
   {
-    "id": 2,
-    "prompt": "先判断这个源该不该传；如果技术上能传但还没修满分，也别直接替换仓库。",
-    "expected": "应输出 A/B/C 档判断，明确“技术上可传”与“建议现在上传”不是一回事。"
+    "id": "fix-tags-only",
+    "prompt": "仓库里这个源标签错了，改成 ds,优，不要重新上传。",
+    "expected": "house_file list 定位；多匹配让用户选；info 确认当前对象；确认 metadata 变更后 update_tags；再次 info 核验。"
   },
   {
-    "id": 3,
-    "prompt": "仓库里这个文件标签打错了，帮我改成 ds,优，并告诉我最终结果。",
-    "expected": "应走 update_tags，并回报最终 tags、file_id/cid 或必要的文件信息。"
+    "id": "conflicting-metadata",
+    "prompt": "这个 file_id 改公开，cid 我也给你了；如果标签和公开状态不一致你看着处理。",
+    "expected": "先校验 file_id/cid 是否一致；冲突或标签/可见性目标不明确时停止并提问，不静默修改。"
   }
 ]

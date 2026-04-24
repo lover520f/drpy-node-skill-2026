@@ -1,17 +1,17 @@
 [
   {
-    "id": 1,
-    "prompt": "这个源播放不通，返回的是 play.html。你帮我判断 lazy 是不是写错了。",
-    "expected": "应先判断当前返回的是网站播放页、站外解析页还是直链，而不是一看到 play.html 就直接判错。"
+    "id": "fake-direct-play-page",
+    "prompt": "play 返回 parse:0，但 url 是 /play/1-1.html，播放器打不开，帮我修 lazy。",
+    "expected": "先确认 detail 稳定，再判定网站播放页被误当直链；选择 parse:1 嗅探或提取 iframe/m3u8，复测同一 play_url+flag。"
   },
   {
-    "id": 2,
-    "prompt": "lazy 里拿到一个 http 链接，但我不确定它是直链还是站外解析链接。",
-    "expected": "应区分 m3u8/mp4 等直链媒体与解析页，给出 parse/jx 的正确组合建议。"
+    "id": "encrypted-player-json",
+    "prompt": "播放页有 player_data，encrypt=2，url 像乱码，播放不通。",
+    "expected": "提取 player_* JSON，base64Decode 后 unescape，验证 m3u8/mp4 或 tellIsJx，再返回正确 parse/jx。"
   },
   {
-    "id": 3,
-    "prompt": "播放页里有 player_* 配置，json.url 看着像乱码。下一步怎么排？",
-    "expected": "应优先检查 encrypt 与解密流程，沿 common_lazy 风格排查。"
+    "id": "browser-only-m3u8",
+    "prompt": "fetch_spider_url 找不到 m3u8，但浏览器能播，怎么排查？",
+    "expected": "用 Playwright 打开播放页，点击必要按钮，browser_network_requests 过滤 m3u8/mp4/api/play/url，提取运行时媒体 URL 或签名 API。"
   }
 ]

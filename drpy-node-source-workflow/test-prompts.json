@@ -1,12 +1,17 @@
 [
   {
-    "id": 1,
-    "prompt": "一个 drpy 源 evaluate_spider_source 低分，但 category/detail/play 单测大多正常。请给出 workflow 应该怎么分流和排查。",
-    "expected": "应先区分规则不通与自动串联没接上，优先检查首页 class、class_parse、double、url/searchUrl，再决定是否分流到其他子 skill。"
+    "id": "evaluate-chain-break",
+    "prompt": "某源 evaluate 首页和一级丢分，但 category/detail/play 单接口都能通，帮我判断根因并修。",
+    "expected": "判定 B 类评估串联问题；用 get_resolved_rule 查 class_parse/double/url/searchUrl，给出证据链等级、修复方案确认、复测 evaluate。"
   },
   {
-    "id": 2,
-    "prompt": "某站 detail 页真实能抓到多集，debug_spider_rule 对 ul/li/a 都能看到多项，但最终 vod_play_url 只出 1 集。workflow 应先怎么处理？",
-    "expected": "应优先检查二级字典的 lists/list_text/list_url 契约，先验证 lists 容器层级是否应落到 li，而不是直接切 async 二级或甩锅引擎。"
+    "id": "detail-empty-play-broken",
+    "prompt": "某源详情为空、播放也不通，别急着重写，先帮我诊断。",
+    "expected": "先 L1/L2 拆接口，确认 detail 是上游断点，修 detailUrl/二级字典/lists 后再决定是否转 play-debug。"
+  },
+  {
+    "id": "url-create-upload",
+    "prompt": "只有一个视频网站 URL，帮我做源，测试通过后再考虑上传仓库。",
+    "expected": "识别新建场景并转 source-create，回收五接口验证结果后给 repo-upload 所需 A/B/C 与 L1/L2/L3 上下文。"
   }
 ]
