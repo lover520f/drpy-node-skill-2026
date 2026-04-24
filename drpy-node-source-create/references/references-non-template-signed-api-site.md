@@ -1,6 +1,84 @@
-# 橘子动漫（mgnacg）开发经验总结
+# 路线 B：非模板签名接口站通用参考
 
-> 适用于这类 **非模板站 + 一级数据接口签名 + 详情资源列表静态 + 搜索验证码拦截但 suggest 可用** 的场景。
+> 适用于非内置模板站，页面有完整 HTML DOM 结构，但分类/搜索等数据由前端带签名的接口驱动的场景。
+> 此路线介于路线 A（纯模板继承）和路线 C（全 async API）之间——页面结构可通过 HTML 解析，但数据加载依赖接口调用。
+
+---
+
+## 站点特征速判
+
+| 特征 | 说明 |
+|------|------|
+| `guess_spider_template` | 不命中 |
+| 页面 HTML | header/footer/筛选控件完整，列表区域无直出数据 |
+| 数据来源 | 前端 JS 发起带签名的接口请求（GET 或 POST） |
+| 详情页 | 通常是 HTML 直出（非 JSON API）→ 优先用二级字典 |
+| 播放页 | HTML 直出 / iframe / 需要额外解析 |
+
+---
+
+## 推荐编写策略（按优先级）
+
+### 首页/推荐
+优先用 HTML 解析——首页通常有直出的推荐卡片，模板默认推荐逻辑可能仍生效。
+```js
+推荐: 'ul.vod-list li;a&&title;...'  // HTML 解析即可
+```
+
+### 一级/分类（必须 async）
+签名接口无法用字符串规则，必须用 async function：
+```js
+一级: async function () {
+    let {input, MY_CATE, MY_PAGE} = this;
+    // 用 MY_CATE/MY_PAGE 代替手动拼 URL
+    let url = `https://api.example.com/vod?type=${MY_CATE}&page=${MY_PAGE}`;
+    let html = await request(url, {
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    });
+    let json = JSON.parse(html);
+    return json.data.list.map(it => ({
+        vod_id: it.id,
+        vod_name: it.title,
+        vod_pic: it.cover,
+        vod_remarks: it.note
+    }));
+}
+```
+
+### 二级/详情
+- **HTML 直出 → 优先用二级字典**（`{title, img, desc, content, tabs, lists}`）
+- JSON API → 用 async function + `detailUrl`
+- 纯数字 vod_id 必须设 `detailUrl`
+
+### 搜索
+- 搜索 API 通常独立于一级，不要假设 `搜索: '*'` 继承生效
+- 先用 `fetch_spider_url` 测试搜索 API 连通性
+- 如果搜索遇到验证码，考虑 suggest/RSS fallback
+- `searchUrl` 必须带 `**`
+
+### 播放
+- 优先原页面嗅探（不急于提取直链）
+- 模板默认 lazy 可能仍适用 → **模板可混合**：保留模板的推荐/lazy，只覆盖一级/搜索
+- 播放页含 iframe → 用 `extract_iframe_src` 提取
+
+---
+
+## 排查顺序
+
+```
+1. 浏览器抓包确认一级接口：GET/POST、签名参数(time/key/token)、请求头
+2. fetch_spider_url 测试 API 连通性（确认无需额外鉴权）
+3. 写一级 async function（先用固定分类测试，再考虑翻页）
+4. 用一级真实返回的 vod_id 测 detail
+5. 测搜索独立接口（不要假设继承）
+6. 最后处理播放 lazy（优先原页面嗅探）
+```
+
+---
+
+## 案例详情：橘子动漫（mgnacg）
+
+> 以下为具体案例，适用于 **非模板站 + 一级数据接口签名 + 详情资源列表静态 + 搜索验证码拦截但 suggest 可用** 的场景。
 
 ---
 
