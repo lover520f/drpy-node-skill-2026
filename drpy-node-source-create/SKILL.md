@@ -28,9 +28,10 @@ description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 
 
 - 命中模板（返回 mx/mxpro/首图 等） → 走路线 A
 - 不命中 + 页面源码几乎为空（body 只有 SPA 容器） → 走路线 C
-- 不命中 + 页面有筛选控件/header/footer 但列表区域无直出内容 → 先用 `fetch_spider_url` 检查是否存在 `/api/` 接口：
+- 不命中 + 页面有筛选控件/header/footer 但列表区域无直出内容 → 先用 `fetch_spider_url` 检查是否存在 `/api/` 接口（可尝试拼接常见路径如 `/api/vod`、`/api/video`、`/api/list`）：
   - 找到 JSON API → 走路线 C（纯 API 站）
   - 无 JSON API + 数据由带签名接口驱动 → 走路线 B
+  - 请求返回 403/404 → 区分"无此接口"与"需要签名"，换浏览器抓包确认
 - 不命中 + 有完整 HTML 列表 DOM → 走路线 B（手动分析接口）
 
 **辅助判断：`analyze_website_structure(url)` 抓取精简 DOM 结构（注意看列表区域是空容器还是直出 HTML）**
@@ -137,7 +138,7 @@ description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 
 1. **先试二级字典**：如果详情页是 HTML 而非 JSON，优先用二级字典映射（`{title, img, desc, content, tabs, lists}`）。`lists` 容器层级从 ul 下沉到 li 即可解决多集问题，无需切 async。
 2. **一级优先 async**：签名接口必须用 async 函数处理，无法用字符串规则。用 `this.MY_CATE` / `this.MY_PAGE` 代替手动拼 URL。
 3. **搜索独立验证**：签名站的搜索接口通常独立于一级，不要假设 `搜索: '*'` 继承生效。先用 `fetch_spider_url` 测试搜索 API 连通性。
-4. **模板可混合**：签名接口站的首页推荐和播放页 lazy 可能仍可使用模板默认逻辑。优先保留模板的推荐/lazy，只覆盖一级/搜索。
+4. **模板可混合**：签名接口站的首页推荐和播放页 lazy 可能仍可使用模板默认逻辑。优先保留模板的推荐/lazy，只覆盖一级/搜索。（此处的"模板"指 `get_spider_template()` 生成的代码骨架中的默认实现，不是路线 A 的 CMS 模板继承。）
 
 ### 参考资料
 - `references/references-non-template-signed-api-site.md`
