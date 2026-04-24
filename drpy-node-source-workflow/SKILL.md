@@ -43,6 +43,12 @@ test_spider_interface(source_name, "play", play_url)       # 播放
 - **B. 评估器没串起来** → 单接口通但 evaluate 不通
 - **C. 主要卡在播放链** → detail 正常但 play 异常
 
+### 🛑 检查点 1：确认诊断结论
+在进入分流前，向用户呈现诊断摘要：
+- 各接口状态（通/不通）
+- 初步判断属于哪类失败（A/B/C）
+- 确认后再进入对应的修复路线
+
 ### Step 4：分流
 | 问题类型 | 分流目标 |
 |---|---|
@@ -55,6 +61,12 @@ test_spider_interface(source_name, "play", play_url)       # 播放
 - `evaluate_spider_source` 重新评估
 - 给出是否有效结论
 - 决定是否上传/替换/回滚（需要上传时 → `house_file(action='upload')`)
+
+### 🛑 检查点 2：确认操作方案
+在收束前向用户确认：
+- 修复结果摘要（哪些接口已通/仍不通）
+- 是否建议上传（A/B/C 档）
+- 用户确认后再执行上传/回滚等操作
 
 ### 强约束
 不要把 workflow 变成"所有事都自己做完"。它的价值在于：先评估 → 再分流 → 最后收束。
@@ -170,6 +182,14 @@ test_spider_interface(source_name, "play", play_url)       # 播放
 
 ### 多集只吐 1 集
 先查 `lists` 容器层级（从 ul 下沉到 li），用 `debug_spider_rule(pdfa)` 验证各层项数。不要直接切 async。
+
+```bash
+# 排查示例
+debug_spider_rule(url, '.anthology-list-box ul li a', pdfa)
+# 先看 ul 层返回几项 → 再看 li 层返回几项
+# 若 ul 层返回1项但 li 层返回多项 → lists 容器需从 ul 下沉到 li
+```
+如果 CSS 层级调整后仍只有 1 集，再用 `test_spider_interface(detail)` 配合真实 vod_id 复现，确认是否 `detailUrl` 缺失或二级字典字段映射错误。详见 `references/../drpy-node-source-create/references/references-detail-dict-and-multiep.md`。
 
 ### 最小化原则
 先保证 标题/描述/详情/图片/线路/列表，不强补 年份/地区/演员/导演。
