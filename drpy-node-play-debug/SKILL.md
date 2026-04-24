@@ -1,6 +1,6 @@
 ---
 name: drpy-node-play-debug
-description: 适用于 drpy-node 源的播放链路排查与 lazy 修复。用户提到"播放不通""lazy 不对""是不是直链""play.html 被当直链""iframe 提取""m3u8 提取""parse:0/1 判断""假播放""站外解析"时使用。专注于判断播放结果是否真实可播，并优先修复 lazy 逻辑。
+description: 适用于 drpy-node 源的播放链路排查与 lazy 修复。用户提到"播放不通""lazy 不对""是不是直链""play.html 被当直链""iframe 提取""m3u8 提取""parse:0/1 判断""假播放""站外解析""加密链接""player_* 配置""乱码链接""webplay"时使用。专注于判断播放结果是否真实可播，通过 30 秒速查决策树快速定位问题类型，优先修复 lazy 逻辑。包含 common_lazy/def_lazy/cj_lazy 三种模板默认行为、encrypt 解密、iframe/m3u8 提取和特殊内容协议(pics/novel/push)的完整覆盖。
 ---
 
 # drpy-node Play Debug
