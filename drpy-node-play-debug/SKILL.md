@@ -506,8 +506,15 @@ return { parse: 0, url: 'push://' + playUrl, js: '' };
 ```
 1. detail 真通？ → No → 交回 workflow
 2. lazy 类型判断 → common_lazy / def_lazy / cj_lazy
+   ├─ Step 2: 判断模板默认 lazy 类型
 3. 返回类型判断 → 直链 / 站外 / 播放页
-4. 加密检查 → encrypt 1/2
-5. 修复 lazy → 用正确 parse/jx 返回
-6. 验证 → test_spider_interface(play)
+   ├─ Step 3: 用 URL 类型判定表判类型
+   ├─ 🛑 检查点：确认诊断后再修复
+4. 假通过识别 → 检查 parse/jx/url 是否真实
+5. 加密检查 → encrypt 1/2 → base64Decode/unescape
+6. 修复 lazy → 用正确 parse/jx 返回
+   ├─ 编辑 → 验证 → 🛑 确认修复结果
+7. 验证 → test_spider_interface(play)
+8. 多线路？ → 分别测试各线路 → 🛑 确认诊断方向 → 按 flag 分派
+9. 闭环 → 收尾输出模板 / 交回 workflow
 ```
