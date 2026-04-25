@@ -97,6 +97,8 @@ async () => {
 }
 ```
 
+源码 caveat：当前 `template.js` 中的 `common_lazy` 会提取并计算 `result`，但返回处可能仍表现为 `input` 或经过 `playParseAfter()` 后处理的结果。排查播放问题时不要只按上面的简化模型判断，必须用 `get_resolved_rule(path)` 看最终 lazy/play_json，再用 `test_spider_interface(play)` 复测真实输出。
+
 ### 4.2 def_lazy (默认模板)
 
 ```js
@@ -158,11 +160,13 @@ var rule = {
 var rule = {
     模板: 'mxpro',
     模板修改: async function(muban) {
-        // 在执行模板继承之前修改模板
-        muban.mxpro.一级 = '自定义选择器'; // 动态修改模板规则
+        // 在执行模板继承之前修改完整模板 map
+        muban.mxpro.一级 = '自定义选择器';
     }
 }
 ```
+
+`模板修改(muban)` 的输入不是当前 rule，而是所有模板组成的 map；它发生在继承之前，适合对某个模板做少量全局修正。继承合并仍是 `Object.assign(rule, templateRule, originalRule)`，所以源文件里显式写出的字段最终会覆盖模板字段。
 
 ### 5.4 继承优先级
 
@@ -192,7 +196,15 @@ guess_spider_template(url) 请求分析
     └── 网络分析 → 找到真实API → 全async函数
 ```
 
-## 七、理解 `*` 星号继承
+## 七、模板调试建议
+
+1. `guess_spider_template(url)` 是启发式判断，只说明页面分类特征像某个模板，不保证 `url/searchUrl/二级/lazy` 全部正确。
+2. 写入源后先用 `get_resolved_rule(path)` 查看继承后的最终字段，重点看 `class_parse`、`double`、`url`、`searchUrl`、`二级`、`lazy`、`play_json`。
+3. 命中模板后仍要逐接口验证：home/class → category → detail → play → search；不要只凭模板名判断可用。
+4. 首页推荐为空时优先查 `double` 与推荐容器层级；搜索为空时优先查真实搜索页结构，不要默认 `搜索: '*'` 一定可用。
+5. 如果只少数字段不匹配，优先最小覆盖字段；不要复制整份模板再改。
+
+## 八、理解 `*` 星号继承
 
 在字符串规则中，`*` 表示继承一级规则的对应位置：
 

@@ -121,6 +121,17 @@ jx = tellIsJx(playUrl);  // 判断是否站外解析
 
 所以在 lazy 中返回字符串 `"https://example.com/movie.m3u8"` 也是安全的——框架会自动处理。
 
+## 播放相关 rule 字段速查
+
+| 字段 | 典型症状 | 检查重点 |
+|---|---|---|
+| `play_json` | lazy 表面返回与最终 `parse/jx/url` 不一致 | 用 `get_resolved_rule` 看继承后的最终字段，再测 play |
+| `play_parse` | 是否解析/嗅探的行为不符合预期 | 确认不是用配置掩盖错误直链判断 |
+| `sniffer` | 页面 URL 需要嗅探真实媒体请求 | 静态工具找不到时用浏览器网络证据确认 |
+| `isVideo` | HTML/API 地址被误判为媒体，或媒体地址未识别 | 对照 URL 后缀、content-type、网络响应内容 |
+
+这些字段会影响 lazy 前后处理，但不能替代真实播放验证；最终仍以 `test_spider_interface(play)` 加媒体证据为准。
+
 ## tellIsJx 判断规则（站外解析识别）
 
 框架的 `tellIsJx(url)` 通过 URL 特征判断是否为站外解析链接：
@@ -185,10 +196,12 @@ return { parse: 1, url: input, js: '' }
 
 | 假通过表现 | 判定 | 下一步 |
 |---|---|---|
-| `parse:0` 但 url 是 `/play/...html` 或普通 HTML 页 | 播放页被误当直链 | 改为 `parse:1` 或提取真实 m3u8/iframe |
+| `parse:0` 但 url 是 `/play/...html`、API 地址或普通 HTML 页 | 播放页/API 被误当直链 | 查 `isVideo/sniffer`，改为 `parse:1` 或提取真实 m3u8/iframe |
 | `parse:0` 但 url 不是 http/特殊协议/媒体后缀 | 加密或拼接错误 | 查 encrypt/base64/sign |
 | `jx:1` 但 url 是本站详情/播放页 | 站外解析误判 | 保留本站播放页走 parse:1 |
 | 返回空 url 或原 input | lazy 没提取到有效目标 | 回到 player_* / iframe / 网络请求排查 |
+
+如果 `play` 接口 success 但返回 URL 仍是网页/API，必须继续验证扩展名、content-type、响应内容或浏览器网络请求；必要时检查 `play_json/play_parse/sniffer/isVideo` 是否改变了最终判断。
 
 以下情况必须二次确认后再改：
 - lazy 需要重写超过一个分支或影响多条线路。
@@ -347,6 +360,7 @@ return { parse: 0, url: 'push://' + playUrl, js: '' };
 ### 强制停手检查点
 出现以下任一情况时，暂停深挖 lazy，交回 workflow：
 - detail 还没稳定产出 vod_play_from/vod_play_url
+- 需要修改 detail 的线路名、分组或选集生成逻辑
 - 问题已明显超出播放链
 - 用户目标已变成"评估整份源是否可用"
 

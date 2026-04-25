@@ -42,6 +42,14 @@ double: true
 - 搜索第二页（如果有）
 - 是否命中站内搜索页真实容器
 
+### Q6. 源文件 metadata 是否自洽？
+新建源写入前必须确认：
+- `@header.title` / rule `title` / 文件名表达的是同一个源。
+- `@header` 的 `类型` 与实际内容一致（影视/漫画/小说/听书等）。
+- `lang: 'ds'`、`searchable`、`filterable`、`quickSearch` 与源实际能力一致。
+- 特殊内容源已明确预期协议（`pics://`、`novel://`、音频直链、`push://`）。
+- 仓库 tags 不在 create 阶段脑补，上传标签交给 repo-upload。
+
 ---
 
 ## 2. 模板继承后优先检查表
@@ -70,3 +78,6 @@ double: true
 
 ### 纪律 D
 如果自动评估没串起来，不要先判源死；先拆接口验证。
+
+### 纪律 E
+源内 metadata 只描述运行时源身份和能力，不代表仓库 tags；如果用户要求上传或改标签，交给 repo-upload。

@@ -28,6 +28,8 @@
 
 ## 三、文件操作工具
 
+文件操作工具由 `drpy-node-mcp/tools/fsTools.js` 实现；网站分析、模板猜测、规则调试、结构验证和 resolved rule 等由 `spiderTools.js` 实现。不要把两者混淆。
+
 ### `drpy_read_file(path)`
 - **核心能力**: 读取 drpy 项目中任意文件
 - **特别机制**: 自动检测 DS 加密格式并解密
@@ -69,6 +71,7 @@
 #### `guess_spider_template(url, options?)`
 - 请求目标 URL → 与内置 12 个模板的 `class_parse` 规则匹配 → 判断 CMS 类型
 - **返回值**: mx / mxpro / 首图 / 海螺3 / 不要套用模板 等
+- **边界**: 这是启发式命中，只证明分类结构相似，不保证 `url/searchUrl/detail/lazy` 都匹配
 - **典型用法**: 新建源的第一步，决定走路线 A（模板继承）/ B（签名API）/ C（SPA）
 
 #### `fetch_spider_url(url, options?)`
@@ -78,7 +81,7 @@
 
 #### `extract_website_filter(url, urls?, gzip?, options?)`
 - 分析分类页面 DOM，提取筛选条件（地区/年份/类型等）
-- **支持**: 单 URL 或批量 URL；gzip+base64 压缩输出
+- **支持**: 单 URL 或批量 URL；gzip+base64 压缩输出；可识别常见 CMS filter block，也会从 query 参数中归纳筛选
 - **典型用法**: 生成 filter 配置，用于有筛选需求的源
 
 #### `extract_iframe_src(url, options?)`
@@ -92,6 +95,7 @@
   - `pdfa`: 获取列表数组（测试 CSS 选择器命中哪些元素）
   - `pdfh`: 提取节点文本/属性
   - `pd`: 提取并标准化 URL
+- **重要边界**: `pdfa` 模式应传纯 CSS selector（如 `.list li`），不要传完整分号规则（如 `.list li;a&&Text;img&&src;...`）
 - **典型用法**: 在写源时验证选择器是否正确，减少反复 write → test 的迭代
 
 ### 模板与验证类
@@ -110,6 +114,7 @@
 
 #### `validate_spider(path)`
 - 语法检查 + rule 对象结构验证（必填字段、字段类型、值合法性）
+- **证据层级**: L1 结构验证，只能说明源形态基本合法，不能证明接口真实可用
 - **典型用法**: 比 `drpy_check_syntax` 更全面的验证
 
 #### `get_resolved_rule(path)`
@@ -162,6 +167,16 @@
   - 修源后的回归测试
   - 上传前评估
 
+### 证据层级与工具边界
+
+| 层级 | 工具 | 结论边界 |
+|---|---|---|
+| L1 | `drpy_check_syntax` + `validate_spider` | 语法/结构合法，不代表运行时可用 |
+| L2 | `test_spider_interface` | 单接口经真实 `localDsCore/getEngine` 验证通过或失败 |
+| L3 | `evaluate_spider_source` | 首页→一级→二级→播放→搜索自动串联评分 |
+
+`test_spider_interface` / `evaluate_spider_source` 都调用真实引擎；结论强度高于静态结构检查。上传或“源已修好”这类结论应至少说明采用了哪一层证据。
+
 ## 六、仓库管理工具
 
 ### `house_verify()`
@@ -181,7 +196,7 @@
   | `toggle_visibility` | file_id | 切换公开/私密 |
   | `update_tags` | file_id, tags | 更新标签 |
 
-- **自动标签检测**: 源码中内置了 `detectSourceTypeInfo()` 自动识别类型标签 (`ds`/`catvod`/`php`/`hipy`/`json`/`优`/`jx`)
+- **自动标签检测**: 源码中内置了 `detectSourceTypeInfo()` 自动识别类型标签 (`ds`/`catvod`/`php`/`hipy`/`json`/`优`/`jx`)，上传时可能自动检测/合并标签；用户明确指定标签时应以用户要求为准，上传后用 `info` 核验元数据
 - **MIME 映射**: 内置常见文件类型的 MIME 映射表
 - **典型用法**: 上传新源、替换旧源、修正标签
 

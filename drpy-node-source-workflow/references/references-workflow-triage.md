@@ -54,12 +54,31 @@
 - 区分“规则本身不通”
 - 和“自动评估串联没接上”
 
+证据边界：
+- L1：`drpy_check_syntax` / `validate_spider` 只证明结构可检查，不能说已修好或可上传。
+- L2：`test_spider_interface` 是真实引擎单接口测试，必须记录接口名、真实 `class_id/ids/play_url/flag`。
+- L3：`evaluate_spider_source` 依赖 localDsCore 串联 home→category→detail→play→search，可作为上传建议依据，但不保证站点长期稳定。
+
 ---
 
-## 4. 强纪律
+## 4. MCP 工具边界
+
+| 工具 | 适合判断 | 边界 |
+|---|---|---|
+| `analyze_website_structure` | 静态 DOM 结构、候选选择器 | 页面可能截断，不能证明动态 API 或播放可用 |
+| `debug_spider_rule` | 单个 cheerio/pd 规则是否命中 | `pdfa` 模式只传纯 CSS，不能把完整分号规则塞进去 |
+| `test_spider_interface` | 单接口真实引擎输出 | 输出可能截断；结论只覆盖该接口和该输入 |
+| `evaluate_spider_source` | 全流程串联评分 | 依赖上游结果自动取下游参数，断点要回到单接口拆测 |
+
+---
+
+## 5. 强纪律
 
 ### 纪律 A
 不要把模板问题、入口问题、评估器串联问题误判成选择器问题。
 
 ### 纪律 B
 不要在没验证模板内置规则前，就大面积手写覆盖。
+
+### 纪律 C
+上传、替换、改标签不在 workflow 内直接执行；必须带本地路径、源名、内容类型、A/B/C 建议、L1/L2/L3 证据和用户明确标签转 repo-upload。

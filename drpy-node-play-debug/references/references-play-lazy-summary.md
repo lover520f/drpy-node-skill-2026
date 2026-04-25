@@ -96,6 +96,8 @@ jx = tellIsJx(playUrl);
 - 即使 lazy 返回 `{parse:1, url}`，如果 url 以 m3u8/mp4/m4a/mp3 结尾 → 框架自动覆盖为 parse:0
 - 即使 lazy 返回纯字符串 URL（无对象包裹）→ 框架自动处理后返回
 
+**播放相关字段补充**：`play_json`、`play_parse`、`sniffer`、`isVideo` 都可能影响最终播放输出。若 lazy 返回值与 `test_spider_interface(play)` 输出不一致，先看 `get_resolved_rule` 中这些字段是否存在，再判断是 lazy 问题还是后处理/嗅探配置问题。
+
 ---
 
 ## 5. 常见加密模式对照
@@ -136,3 +138,16 @@ lazy: async function () {
     return {parse: 1, url: input};  // 需解析线路
 }
 ```
+
+---
+
+## 8. 播放字段检查清单
+
+| 字段 | 何时检查 | 结论边界 |
+|---|---|---|
+| `play_json` | lazy 返回和最终 `parse/jx/url` 不一致 | 可能参与播放后处理，需结合真实 play 输出判断 |
+| `play_parse` | parse 行为与预期不同 | 只能解释解析/嗅探开关，不能证明 URL 可播 |
+| `sniffer` | 静态页面无直链但浏览器可播 | 需要 Playwright/network 证据确认媒体请求 |
+| `isVideo` | 媒体识别误判或网页被当直链 | 对照 URL 后缀、content-type、响应内容 |
+
+m3u8 返回可疑时，可考虑 `fixAdM3u8Ai(url, content, headers?)` 这类修复辅助，但前提是已经拿到真实 m3u8 内容；它不能替代 iframe/API/签名提取。

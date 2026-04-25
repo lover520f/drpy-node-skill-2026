@@ -3,6 +3,16 @@
 > 来源：drpy 沙箱环境全局注入函数
 > 用途：写源时查阅可用的工具函数
 
+## 〇、运行时边界
+
+DS 源运行在 drpy 注入沙箱中，不是普通 Node.js 模块。源代码里可使用本文件列出的全局函数和库，但不要假设原生 `fs`、`process`、Node `require` 或 MCP 工具可用。
+
+注意区分两类能力：
+- 全局函数：`request`、`post`、`req`、`pdfa`、`pdfh`、`pd`、`CryptoJS`、`local` 等，可直接在源内调用。
+- `this` 上下文：`this.input`、`this.MY_CATE`、`this.MY_PAGE`、`this.KEY` 等由引擎按接口注入。
+
+MCP 工具（如 `test_spider_interface`、`extract_website_filter`）只能在调试/验证阶段由外部调用，不能写进 DS 源文件。
+
 ## 一、核心请求函数
 
 | 函数 | 说明 |
@@ -94,7 +104,7 @@ let { input, MY_URL, HOST, MY_CATE, MY_PAGE, MY_FL, KEY, fetch_params,
 
 | 变量 | 含义 |
 |---|---|
-| `input` | 渲染后的完整 URL |
+| `input` | 渲染后的完整 URL，不是响应体 |
 | `MY_URL` | 当前请求的完整URL |
 | `MY_CATE` | 分类ID |
 | `MY_PAGE` | 当前页码 |

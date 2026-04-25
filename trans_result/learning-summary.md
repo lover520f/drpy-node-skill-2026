@@ -30,6 +30,15 @@ drpy 是一个**基于沙箱隔离的爬虫规则引擎**，核心流程：
 
 **原则**: 能用第1/2层就不用第3/4层。引擎的 `commonXxxParse()` 函数对字符串规则有深度优化和容错处理。
 
+### 新增源码级认知
+
+- DS 源运行在 `vm.createContext` 沙箱中，不是普通 Node.js 环境；优先使用注入的 `request/pdfh/pd/local/CryptoJS` 等能力。
+- 完整生命周期是：读取/解密源码 → 创建沙箱 → 执行源码得到 rule → `模板修改(muban)` → 模板继承 → `initParse()` → `invokeMethod()`。
+- `模板修改(muban)` 发生在继承前；继承合并为 `Object.assign(rule, templateRule, originalRule)`，源显式字段最终覆盖模板。
+- `this` 是注入 Proxy：先取运行时 `injectVars`，再回退到 rule 字段；`this.input` 永远先理解为渲染后的 URL。
+- `validate_spider` 只是 L1 结构验证；运行时证据来自 L2 `test_spider_interface` 和 L3 `evaluate_spider_source`。
+- `common_lazy` 的简化模型不能替代源码与真实 play 测试；当前实现还要结合 `playParseAfter()` 与 `play_json` 看最终输出。
+
 ## 二、模板继承系统
 
 ### 12 个内置模板
@@ -153,6 +162,9 @@ let { input, MY_URL, HOST, MY_CATE, MY_PAGE, MY_FL, KEY, fetch_params } = this;
 | `{parse:0, url: 'novel://...'}` | 0 | — | 小说内容 |
 | `{parse:0, url: 'pics://...'}` | 0 | — | 漫画图片 |
 | `{parse:0, url: 'push://...'}` | 0 | — | 投屏 |
+| 字符串直返 | 自动 | 自动 | 交给 `playParseAfter()` 判断直链/解析/嗅探 |
+
+`play_json` 会参与播放后处理，可能覆盖或影响最终 `parse` / `jx` / `url`。当 lazy 代码看似返回直链，但 `test_spider_interface(play)` 输出不同，必须同时检查模板继承后的 `lazy` 与 `play_json`。
 
 ### 三种模板默认 lazy
 
@@ -222,7 +234,11 @@ lazy 类型 → common_lazy / def_lazy / cj_lazy
 | 接口测试 | `test_spider_interface` | `evaluate_spider_source` |
 | 播放排障 | `extract_iframe_src` | `test_spider_interface(play)` |
 | 标准验证 | `drpy_check_syntax` | `validate_spider` |
-| 仓库操作 | `house_verify` → `house_file` | — |
+| 结构证据 | `validate_spider` | L1：只证明语法/结构合法，不证明运行时可用 |
+| 单接口证据 | `test_spider_interface` | L2：真实引擎调用某接口 |
+| 全链证据 | `evaluate_spider_source` | L3：首页→一级→二级→播放→搜索串联评分 |
+| 规则调试 | `debug_spider_rule(pdfa)` | `pdfa` 传纯 CSS selector，不传完整分号规则 |
+| 仓库操作 | `house_verify` → `house_file` | 上传后用 info 核验 tags/is_public/cid |
 
 ### 全流程评估链
 
@@ -289,6 +305,19 @@ guess_spider_template(url)
 └── 页面空(SPA) → API 驱动
     └── 网络分析 → 全 async 函数
 ```
+
+### 选型 checklist
+
+| 站型/特征 | 首选路线 | 关键验证 |
+|---|---|---|
+| 标准 CMS，模板命中 | 模板继承最小覆盖 | `get_resolved_rule` + 分类/搜索/播放单测 |
+| HTML 直出列表 | 静态 DOM 字符串规则 | `debug_spider_rule(pdfa/pdfh/pd)` |
+| XHR/API 带 sign/token | 签名 API async | 浏览器真实请求 + `fetch_spider_url` 复现 |
+| SPA 空壳 | 纯 API async | 找真实 API，设置 `detailUrl/searchUrl` |
+| 漫画/小说/音乐 | 特殊协议 | `pics://` / `novel://` / 音频直链 |
+| 网盘/多线路 | flag 分派 lazy | `vod_play_from/url` 对齐 + 分线路测试 |
+| 需要代理 | `proxy_rule` | 代理 URL 与 content-type 正确 |
+| CatVod/JS0 示例 | 只作对照 | 不直接混入 DS 的 `var rule` 契约 |
 
 ## 十一、进阶知识
 

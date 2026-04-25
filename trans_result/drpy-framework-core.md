@@ -5,11 +5,12 @@
 ```
 请求 → API路由(controllers/api.js) → drpyS.js引擎 → 沙箱执行
                                                ├── init() 初始化模块
+                                               │   ├── 读取/解密 JS 源码并计算 hash
                                                │   ├── getSandbox() 创建隔离沙箱
-                                               │   ├── 执行JS源码获取rule对象
-                                               │   ├── handleTemplateInheritance() 模板继承
-                                               │   ├── initParse() 解析URL/headers/预处理
-                                               │   └── 缓存moduleObject
+                                               │   ├── 执行 JS 源码获取 rule 对象
+                                               │   ├── 模板修改(模板修改) → handleTemplateInheritance() 模板继承
+                                               │   ├── initParse() 解析 host/url/headers/cookie/预处理
+                                               │   └── 缓存 moduleObject / ruleObject
                                                └── invokeMethod() 调度分发
                                                    ├── home/class_parse → 首页分类
                                                    ├── homeVod/推荐 → 推荐内容
@@ -86,6 +87,10 @@ let thisProxy = new Proxy(injectVars, {
 
 这意味着：`this.input` = 注入的 URL 字符串；`this.host` = rule.host。
 
+补充细节：DS 源运行在 `vm.createContext` 创建的注入沙箱里，不是普通 Node.js 模块环境。源内应使用沙箱提供的 `request/pdfh/pd/local/CryptoJS` 等能力，不能假设 `fs/process` 或任意 npm 包天然可用。
+
+`invokeWithInjectVars()` 对 `推荐` 的异常处理更宽松：推荐函数报错时可能被降级为空列表，而一级、二级、搜索、播放等接口错误通常更容易暴露为接口失败。因此“首页推荐空”不一定等同于整个源不可用，需要继续拆接口验证。
+
 ## 三、模块初始化流程 (`drpyS.js:344-472`)
 
 ### Step 1: 读取文件 + Hash计算
@@ -103,11 +108,16 @@ const js_code = await getOriginalJs(fileContent);  // DS格式自动解密
 // 超时控制: 30秒
 ```
 
-### Step 3: 模板继承 (`handleTemplateInheritance`)
+### Step 3: 模板修改 + 模板继承 (`handleTemplateInheritance`)
 ```js
 // 自动模板匹配: 请求host页面，用每个模板的class_parse尝试解析
 if (rule['模板'] === '自动') {
     // 遍历模板，匹配成功则继承
+}
+
+// 如果定义了模板修改，会在继承前拿到完整模板 map
+if (typeof rule.模板修改 === 'function') {
+    await rule.模板修改(muban);
 }
 
 // 普通模板继承: Object.assign(rule, templateRule, originalRule)
@@ -117,6 +127,8 @@ if (rule.模板 && muban.hasOwnProperty(rule.模板)) {
     // 注意: 模板属性在前，rule属性在后（rule覆盖模板）
 }
 ```
+
+要点：`模板修改(muban)` 的作用点是“继承前修改模板定义”；继承完成后 `模板` / `模板修改` 会被移除，源文件里显式写出的字段仍然最终覆盖模板字段。
 
 ### Step 4: 初始化解析 (`initParse`)
 ```js
@@ -200,6 +212,8 @@ parse = SPECIAL_URL.test(playUrl) || /^(push:)/.test(playUrl) ||
 jx = tellIsJx(playUrl);  // 判断是否站外解析
 ```
 
+补充：如果 rule 定义了 `play_json`，`playParseAfter()` 还会用它影响最终 `parse` / `jx` / `url` 结果。因此排查“lazy 返回值和最终播放结果不一致”时，除了看 lazy 本身，也要检查模板继承后的 `play_json`。
+
 ### 5.3 模板默认 lazy
 
 | 模板 | lazy行为 |
@@ -265,7 +279,17 @@ if (typeof(rule.filter) === 'string' && rule.filter.trim().length > 0) {
 }
 ```
 
-## 八、关键设计哲学
+## 八、验证证据层级
+
+| 层级 | 工具/方式 | 能证明什么 | 不能证明什么 |
+|---|---|---|---|
+| L1 | `drpy_check_syntax` / `validate_spider` | JS 语法和 rule 结构基本合法 | 接口真实可用、播放可播 |
+| L2 | `test_spider_interface` | 单个接口经真实引擎调用可通/可断 | 首页→一级→二级→播放全链稳定 |
+| L3 | `evaluate_spider_source` | 自动串联首页、一级、二级、搜索、播放的整体评分 | 站点长期稳定、所有线路都可播 |
+
+`validate_spider` 只是结构校验，不应被写成“源可用”的证据；运行时结论必须来自 `test_spider_interface` 或 `evaluate_spider_source`。
+
+## 九、关键设计哲学
 
 1. **安全隔离**：所有JS源在 vm.createContext 沙箱中执行，无法访问Node.js原生API
 2. **模板优先**：能走模板继承就不要手写，模板Object.assign合并保证了最小覆盖

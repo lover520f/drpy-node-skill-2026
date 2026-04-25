@@ -151,9 +151,24 @@ var rule = {
 **特点**：多网盘资源聚合，lazy根据flag分派不同解析逻辑  
 **适用**：百度/夸克/阿里/天翼等网盘资源搜索
 
-## 三、特殊内容类型
+## 三、实战源型谱
 
-### 3.1 漫画类型
+| 类型 | 代表源 | 识别特征 | 优先实现 |
+|---|---|---|---|
+| A 模板继承 | `樱花动漫[优].js` | 标准 CMS，`guess_spider_template` 命中 | `模板` + 最小覆盖 `url/searchUrl/class_parse` |
+| B1 静态 DOM | `DJ音乐[听].js`、`55影视.js` | HTML 直出列表/详情/搜索 | 字符串规则 + 二级字典 |
+| B2 签名/API | `独播库[优].js`、`360影视[官].js` | XHR/API 带 sign/token/time 或复杂 JSON | async 函数复现真实请求 |
+| 特殊内容 | `番茄小说[书].js`、`包子漫画[画].js` | 小说/漫画/音乐等非影视播放 | lazy 返回 `novel://`、`pics://` 或音频直链 |
+| 网盘/多线路 | `网盘[模板].js` | 多网盘线路、按 flag 分派 | `line_order` + 二级组装 + lazy 分支 |
+| API/helper/proxy | `央视大全[官].js`、`php.js` | 依赖 helper、proxy、hostJs/预处理 | 分层封装请求、代理和播放 |
+| DS 骨架与库 | `_base.js`、`_lib.*.js` | 被其他源复用 | `$.require()` 引用，不作为普通站点源 |
+| CatVod 对照 | `spider/catvod/荐片.js` | JS0/CatVod 插件契约 | 不与 DS 的 `var rule` 写法混用 |
+
+选型原则：先判断站型，再选择最小实现。不要把 B1 静态 DOM 站过度写成全 async，也不要把 B2 签名 API 站强行塞进字符串规则。
+
+## 四、特殊内容类型
+
+### 4.1 漫画类型
 
 ```js
 // lazy 返回 pics:// 协议
@@ -169,7 +184,7 @@ lazy: async function () {
 }
 ```
 
-### 3.2 小说类型
+### 4.2 小说类型
 
 ```js
 // lazy 返回 novel:// 协议
@@ -181,7 +196,7 @@ lazy: async function () {
 }
 ```
 
-### 3.3 音频/音乐类型
+### 4.3 音频/音乐类型
 
 ```js
 // lazy 返回直链 m4a/mp3
@@ -194,9 +209,56 @@ lazy: async function () {
 }
 ```
 
-## 四、模板库文件使用
+## 五、播放返回形态与详情不变量
 
-### 4.1 引用方式
+### 5.1 lazy 返回形态
+
+| 返回形态 | 示例 | 语义 |
+|---|---|---|
+| 字符串直返 | `return input` / `return mp4Url` | 交给 `playParseAfter()` 自动判断 parse/jx |
+| 对象直链 | `{parse:0, url:m3u8}` | 明确免嗅探直播 |
+| 站外解析 | `{parse:0, jx:1, url:pageUrl}` | 交给解析/嗅探链处理站外页面 |
+| 嗅探 | `{parse:1, url:input}` | 明确需要嗅探系统 |
+| 小说 | `{parse:0, url:'novel://...'}` | 小说正文协议 |
+| 漫画 | `{parse:0, url:'pics://...'}` | 漫画图片列表协议 |
+| 投屏/网盘 | `{parse:0, url:'push://...'}` | 推送到外部资源 |
+| 代理 URL | `getProxyUrl()+...` | 通过本地 `proxy_rule` 转发或转换 |
+| 多分支 | `if (flag.includes('夸克')) ...` | 多线路/网盘按 `flag` 分派 |
+
+### 5.2 详情播放不变量
+
+1. `vod_play_from` 与 `vod_play_url` 的线路数量必须一致。
+2. 多线路用 `$$$` 分组；同一线路内多集用 `#` 分隔。
+3. 每集使用 `标题$播放地址`，不要漏掉 `$`。
+4. 二级字典或 async detail 都要保证线路名稳定，便于 lazy 按 `flag` 分派。
+5. detail 测试必须使用一级真实返回的 `vod_id`，不能手推简化 ID。
+
+## 六、filter 筛选模式
+
+| 模式 | 字段 | 适用场景 |
+|---|---|---|
+| inline filter | `filter: { ... }` | 分类少、筛选项短 |
+| gzip/base64 filter | `filter: 'H4sI...'` | 筛选字典很长，减少源文件体积 |
+| 动态分类筛选 | `class_parse` 返回扩展信息 | 分类和筛选由接口动态返回 |
+| URL 模板筛选 | `filter_url: '{{fl.area}}&{{fl.year}}'` | 分类页 URL 由筛选项拼接 |
+| 默认筛选 | `filter_def` | 某分类需要默认排序/类型/地区 |
+
+筛选不要硬编码进 `一级` async，除非站点接口完全非标准；优先让框架用 `filter/filter_url/filter_def` 渲染 `fyfilter`。
+
+## 七、DS 与 CatVod/JS0 区别
+
+| 维度 | DS 源 | CatVod/JS0 |
+|---|---|---|
+| 入口形式 | `@header(...)` + `var rule = {...}` | 插件导出/类方法契约 |
+| 运行环境 | drpy 沙箱注入全局函数 | CatVod/JS0 插件运行时 |
+| 解析方式 | 字符串规则、模板、async rule 字段 | 明确方法实现 |
+| 复用方式 | `模板`、`$.require('./_lib')` | 模块导出或运行时接口 |
+
+迁移或对照源码时不要混用契约：DS 源应保持 `var rule` 字段模型，CatVod 插件方法不能直接粘进 DS 源当作 rule。
+
+## 八、模板库文件使用
+
+### 8.1 引用方式
 
 ```js
 // spider/js/_lib.request.js
@@ -208,7 +270,7 @@ const {requestHtml} = $.require('./_lib.request.js');
 
 所有 `_` 前缀文件是库文件，通过 `$.require()` 引用。
 
-### 4.2 核心库文件一览
+### 8.2 核心库文件一览
 
 | 文件 | 用途 |
 |---|---|
@@ -230,7 +292,7 @@ const {requestHtml} = $.require('./_lib.request.js');
 | `_lib.tingyou.js` | 听书工具 |
 | `_lib.waf.js` | 长亭WAF绕过（WebAssembly） |
 
-## 五、hostJs 动态域名
+## 九、hostJs 动态域名
 
 ```js
 var rule = {
@@ -251,7 +313,7 @@ var rule = {
 
 用于解决经常更换域名的网站，host在运行时动态获取。
 
-## 六、二级访问前预处理
+## 十、二级访问前预处理
 
 ```js
 var rule = {
@@ -264,7 +326,7 @@ var rule = {
 };
 ```
 
-## 七、proxy_rule 代理规则
+## 十一、proxy_rule 代理规则
 
 ```js
 var rule = {
@@ -278,7 +340,7 @@ var rule = {
 
 用于自定义代理请求处理，可以实现图片处理、数据转换等功能。
 
-## 八、完整 rule 字段速查
+## 十二、完整 rule 字段速查
 
 | 字段 | 类型 | 说明 | 必填 |
 |---|---|---|---|

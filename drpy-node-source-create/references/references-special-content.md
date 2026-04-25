@@ -87,3 +87,13 @@ return { parse: 0, url: 'push://' + playUrl, js: '' };
 | 漫画 | `pics://` | `{parse:0, url: 'pics://url1&&url2&&url3'}` |
 | 音乐 | — | `{parse:0, url: 'https://...mp3'}` 或字符串 |
 | 投屏 | `push://` | `{parse:0, url: 'push://...'}` |
+
+## 六、建源与验证标准
+
+特殊内容源的成功标准不是“返回 m3u8/mp4”：
+
+1. `@header` 的 `类型` 必须与内容一致，不能用普通影视 metadata 包装漫画/小说/听书。
+2. detail 应产出章节、曲目、文件或分享资源；`vod_play_from` / `vod_play_url` 仍需线路与列表结构稳定。
+3. play/lazy 的成功标准按协议判断：漫画看 `pics://` 图片列表，小说看 `novel://` 或正文内容，音乐看 mp3/m4a 直链，网盘/投屏看 `push://` 或网盘专用输出。
+4. 验证顺序仍是 home → category → detail → play；只是 play 的断言从“视频直链可播”换成“目标协议/内容有效”。
+5. 上传或打标签时不要在 create 阶段自行决定仓库 tags，交给 repo-upload 按用户要求和验证证据处理。
