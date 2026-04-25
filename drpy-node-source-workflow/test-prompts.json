@@ -13,5 +13,15 @@
     "id": "url-create-upload",
     "prompt": "只有一个视频网站 URL，帮我做源，测试通过后再考虑上传仓库。",
     "expected": "识别新建场景并转 source-create，回收五接口验证结果后给 repo-upload 所需 A/B/C 与 L1/L2/L3 上下文。"
+  },
+  {
+    "id": "dry-run-repair-plan",
+    "prompt": "这个源搜索和播放都有问题，只给修复计划，不要改文件，也不要上传。",
+    "expected": "进入只诊断/dry-run 模式；读取与拆证据链，输出根因判断、拟改字段和验证命令，禁止 drpy_edit_file/drpy_write_file/仓库操作。"
+  },
+  {
+    "id": "play-broken-missing-context",
+    "prompt": "某源播放不通，detail 还没测，你直接转 lazy 专项看看。",
+    "expected": "拒绝空转 play-debug；先测 category/detail 补真实 ids、vod_play_from、vod_play_url、flag 和 play_url，detail 稳定后才分流。"
   }
 ]

@@ -1,6 +1,6 @@
 ---
 name: drpy-node-source-create
-description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 drpy 源""分析这个站做 DS 源""创建新规则""从零开始做源"时使用。专注于站点分析、模板判断、规则生成与初步验证，优先走模板继承与最小覆盖路线，避免一开始就把修复、仓库上传等杂事混在一起。
+description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 drpy 源""分析这个站做 DS 源""创建新规则""从零开始做源"时使用。专注站点分析、模板判断、规则生成与初步验证；已有源修复、播放专项和仓库上传应分流到对应 skill。
 ---
 
 # drpy-node Source Create
@@ -19,6 +19,29 @@ description: 适用于 drpy-node 新建 DS 源。用户提到"新建源""写个 
 - 输入：用户给的 URL/站名/目标内容类型；若缺源名，先自行推导候选源名。
 - 输出：`spider/js/[源名].js` 最小可用源 + 接口验证结果 + 后续分流建议。
 - 停手：已有源修复、播放专项、仓库上传分别交给 workflow/play-debug/repo-upload。
+
+## 模式闸门：先判断是否允许写入
+
+| 用户模式 | 允许动作 | 禁止动作 |
+|---|---|---|
+| 只读 / 规划 / dry-run / 不要改文件 | 读取、诊断、给建源方案、列验证计划 | `drpy_write_file`、`drpy_edit_file`、仓库上传/改标签 |
+| 需要确认后再改 | 读取、诊断、输出方案 | 未确认前禁止写入源文件 |
+| 明确要求执行 | 按本 skill 流程建源与验证 | 不跳过建源方案确认和最小验证链 |
+
+如果用户说“只给方案 / 不要写文件 / dry-run”，本 skill 只能输出站型判断、源名候选、拟写字段和验证计划。
+
+## Reference Map
+
+| 任务 | 首读 reference |
+|---|---|
+| 新建源总清单 | `references/references-create-checklist.md` |
+| 模板继承 / 最小覆盖 | `references/references-template-system.md`、`references/references-inherited-template-minimal-override-site.md` |
+| async 函数通用陷阱 | `references/references-async-function-patterns.md`、`references/references-api-functions.md` |
+| 纯 API / SPA 站 | `references/references-pure-api-async-site.md` |
+| 非模板签名接口站 | `references/references-non-template-signed-api-site.md` |
+| 二级字典 / 多集 | `references/references-detail-dict-and-multiep.md` |
+| 搜索策略 | `references/references-old-encoding-search-site.md` |
+| 特殊内容 | `references/references-special-content.md` |
 
 ## 调度优先级
 
@@ -343,6 +366,16 @@ DS 源运行在 drpy 沙箱中，不是普通 Node.js 模块；源内可用 `req
 
 ### 何时切换到 play-debug
 - 主要卡在 lazy/直链/iframe/m3u8/parse 判断
+
+### Handoff Packet
+
+转交时必须带最小上下文，避免下游重新摸索：
+
+| 目标 skill | 必带字段 |
+|---|---|
+| workflow | 源名、文件路径、站型、home/category/detail/search/play 验证结果、失败接口、证据工具 |
+| play-debug | source_name、真实 detail ids、`vod_play_from`、`vod_play_url`、flag、当前 play 返回 |
+| repo-upload | 文件路径、L1/L2/L3 验证等级、A/B/C 建议、用户标签要求 |
 
 ### 强制停手检查点
 出现以上任一情况时，必须停止在 create skill 内扩写，明确切换。

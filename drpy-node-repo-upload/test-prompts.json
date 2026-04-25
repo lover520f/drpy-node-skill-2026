@@ -13,5 +13,15 @@
     "id": "conflicting-metadata",
     "prompt": "这个 file_id 改公开，cid 我也给你了；如果标签和公开状态不一致你看着处理。",
     "expected": "先校验 file_id/cid 是否一致；冲突或标签/可见性目标不明确时停止并提问，不静默修改。"
+  },
+  {
+    "id": "dry-run-upload-only",
+    "prompt": "帮我做上传 dry-run，只列检查结果和拟上传参数，不要真的上传，也不要改标签。",
+    "expected": "只做读取、house_verify、L1/L2/L3 依据和 A/B/C 初判；列 path/tags/is_public/auto_replace 拟参数，禁止 upload/update_tags/toggle_visibility。"
+  },
+  {
+    "id": "fake-play-final-upload",
+    "prompt": "这个源语法通过，但 play 返回 parse:0 的 play.html；我是要最终版修好后再传。",
+    "expected": "判定播放假通过触发 C 档；最终版要求 L3，不上传，回传文件路径、红线、验证等级并建议转 play-debug/workflow。"
   }
 ]

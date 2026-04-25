@@ -13,5 +13,15 @@
     "id": "browser-only-m3u8",
     "prompt": "fetch_spider_url 找不到 m3u8，但浏览器能播，怎么排查？",
     "expected": "用 Playwright 打开播放页，点击必要按钮，browser_network_requests 过滤 m3u8/mp4/api/play/url，提取运行时媒体 URL 或签名 API。"
+  },
+  {
+    "id": "dry-run-lazy-advice",
+    "prompt": "只判断这个 lazy 应该怎么改，不要修改源文件。",
+    "expected": "进入只读/dry-run 模式；输出 detail 状态、当前返回类型、假通过风险、拟修复 lazy 和复测计划，不调用 drpy_edit_file。"
+  },
+  {
+    "id": "detail-missing-play-url",
+    "prompt": "detail 没有 vod_play_url，但我觉得是播放不通，帮我修 lazy。",
+    "expected": "判定 detail 不稳定且不是播放专项；停止深挖 lazy，回传 workflow 修二级/线路/选集生成。"
   }
 ]
